@@ -9,17 +9,33 @@
     <!-- 載入 Tailwind CSS 化妝品 -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- 改回標準 512x512，這是最安全的尺寸，能避免安卓打包失敗 -->
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+    
     <!-- iOS 專屬設定 -->
+    <link rel="apple-touch-icon" href="/icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="系統覆寫">
 
-    <link rel="icon" type="image/png" sizes="2048x2048" href="/icon.png">
+    <!-- 連結設定檔 -->
+    <link rel="manifest" href="/manifest.json" />
 
     <title>系統_權限覆寫</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- 關鍵：註冊離線引擎 (Service Worker)，解決安裝失敗問題 -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW registered!', reg))
+            .catch(err => console.log('SW failed', err));
+        });
+      }
+    </script>
   </body>
 </html>
