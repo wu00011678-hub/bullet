@@ -34,7 +34,7 @@ const ClockIcon = () => (
   </svg>
 );
 
-// --- Helper Functions (輔助功能：時間計算) ---
+// --- Helper Functions ---
 const formatTimeRange = (start, end) => {
   if (!start || !end) return null;
   const startDate = new Date(start);
@@ -55,14 +55,15 @@ const formatTimeRange = (start, end) => {
   return { text: `${dateStr} [${startTimeStr} » ${endTimeStr}]`, duration: durationStr };
 };
 
-// --- Sub Components (子組件：單個任務) ---
+// --- Sub Components ---
+
 const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [subtaskInput, setSubtaskInput] = useState("");
 
   const timeInfo = formatTimeRange(task.scheduledStart, task.scheduledEnd);
   
-  // Cyberpunk Style Logic (根據優先級改變顏色與光暈)
+  // Cyberpunk Style Logic
   let containerClass = "bg-black/80 border-l-4";
   let borderClass = "border-gray-800";
   let textClass = "text-gray-300";
@@ -102,7 +103,7 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
 
   return (
     <div className={`mb-4 relative border border-gray-800 transition-all duration-300 ${containerClass} ${glowClass}`}>
-      {/* Decorative Corners (裝飾性邊角) */}
+      {/* Decorative Corners */}
       {!task.completed && (
         <>
           <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-current opacity-50"></div>
@@ -223,38 +224,58 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
   );
 };
 
-// --- Main App Component (主程式) ---
+// --- Main App Component ---
+
+// 1. 定義預設任務 (只有第一次使用，完全沒有存檔時才會顯示這些)
+const DEFAULT_TASKS = [
+  { 
+    id: 1, 
+    text: "攻破企業防火牆", 
+    priority: 5, 
+    completed: false, 
+    createdAt: Date.now() - 10000,
+    scheduledStart: null,
+    scheduledEnd: null,
+    subtasks: [
+      { id: 101, text: "繞過 ICE 認證", completed: true },
+      { id: 102, text: "注入 SQL Payload", completed: false }
+    ]
+  },
+  { 
+    id: 2, 
+    text: "升級義體韌體", 
+    priority: 3, 
+    completed: false, 
+    createdAt: Date.now(),
+    scheduledStart: null,
+    scheduledEnd: null,
+    subtasks: []
+  }
+];
+
 export default function App() {
-  const [tasks, setTasks] = useState([
-    { 
-      id: 1, 
-      text: "攻破企業防火牆", 
-      priority: 5, 
-      completed: false, 
-      createdAt: Date.now() - 10000,
-      scheduledStart: null,
-      scheduledEnd: null,
-      subtasks: [
-        { id: 101, text: "繞過 ICE 認證", completed: true },
-        { id: 102, text: "注入 SQL Payload", completed: false }
-      ]
-    },
-    { 
-      id: 2, 
-      text: "升級義體韌體", 
-      priority: 3, 
-      completed: false, 
-      createdAt: Date.now(),
-      scheduledStart: null,
-      scheduledEnd: null,
-      subtasks: []
+  // 2. 初始化 State：先去 localStorage 找，找不到才用預設值
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const savedTasks = localStorage.getItem("cyberpunk_tasks");
+      if (savedTasks) {
+        return JSON.parse(savedTasks);
+      }
+    } catch (e) {
+      console.error("讀取存檔失敗", e);
     }
-  ]);
+    return DEFAULT_TASKS;
+  });
   
   const [inputText, setInputText] = useState("");
   const [inputPriority, setInputPriority] = useState(3);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+
+  // 3. 監聽 tasks 變化：只要任務有任何變動，立刻存檔到 localStorage
+  useEffect(() => {
+    localStorage.setItem("cyberpunk_tasks", JSON.stringify(tasks));
+  }, [tasks]);
 
   const addTask = () => {
     if (!inputText.trim()) return;
@@ -338,7 +359,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-gray-300 font-mono selection:bg-cyan-500 selection:text-black">
-      {/* Background Grid Effect (背景網格特效) */}
+      {/* Background Grid Effect */}
       <div className="fixed inset-0 pointer-events-none opacity-10" 
            style={{ backgroundImage: 'linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
       </div>
@@ -358,7 +379,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Input Console (輸入區) */}
+        {/* Input Console */}
         <div className="mx-4 mb-8 bg-black border border-cyan-900 shadow-[0_0_20px_rgba(34,211,238,0.1)] relative group">
           {/* Decorative Corner Lines */}
           <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-cyan-500"></div>
@@ -419,7 +440,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Task Feed (列表) */}
+        {/* Task Feed */}
         <div className="px-4 space-y-4">
           {sortedTasks.length === 0 ? (
             <div className="text-center py-20 border border-dashed border-gray-800">
