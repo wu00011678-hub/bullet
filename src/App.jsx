@@ -1,4 +1,29 @@
 import React, { useState, useEffect } from 'react';
+// 引入 Firebase 核心功能
+import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { 
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy 
+} from "firebase/firestore";
+
+// --- Firebase 設定區 (請換成你自己的 Firebase 專案設定) ---
+// 如果你在 CodeSandbox 或本機執行，請去 firebase.google.com 申請免費專案
+// 然後把你的 config 貼在這裡覆蓋掉預設值
+const firebaseConfig = { 
+  apiKey :"AIzaSyBfekd-qb18_0j8RNGeLQUe8LZ1xoNRhnE" , 
+  authDomain : "bullet-f2309.firebaseapp.com" , 
+  projectId : "bullet-f2309" , 
+  storageBucket : "bullet-f2309.firebasestorage.app" , 
+  messagingSenderId : "199988816797" , 
+  appId : "1:199988816797:web:93efde2f5ce122fe985d74" , 
+  measurementId : "G-SPHPYJ5QCR" 
+};
+
+// 初始化 Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const APP_ID = "cyberpunk-bullet-journal"; // 你的 APP 唯一識別碼
 
 // --- Cyberpunk Icons (圖標元件) ---
 const StarIcon = ({ filled, colorClass, onClick, size = 20 }) => (
@@ -34,6 +59,15 @@ const ClockIcon = () => (
   </svg>
 );
 
+const SyncIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}>
+    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+    <path d="M16 16h5v5" />
+  </svg>
+);
+
 // --- Helper Functions ---
 const formatTimeRange = (start, end) => {
   if (!start || !end) return null;
@@ -56,7 +90,6 @@ const formatTimeRange = (start, end) => {
 };
 
 // --- Sub Components ---
-
 const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [subtaskInput, setSubtaskInput] = useState("");
@@ -103,7 +136,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
 
   return (
     <div className={`mb-4 relative border border-gray-800 transition-all duration-300 ${containerClass} ${glowClass}`}>
-      {/* Decorative Corners */}
       {!task.completed && (
         <>
           <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-current opacity-50"></div>
@@ -111,11 +143,9 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
         </>
       )}
 
-      {/* Main Task Row */}
       <div className="flex items-center p-4">
-        {/* Checkbox */}
         <button
-          onClick={() => onToggle(task.id)}
+          onClick={() => onToggle(task.id, task.completed)}
           className={`flex-shrink-0 w-6 h-6 mr-4 flex items-center justify-center border-2 transition-all duration-200 ${
             task.completed 
               ? "bg-cyan-500 border-cyan-500 shadow-[0_0_10px_#06b6d4]" 
@@ -130,7 +160,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
             <span className={`text-lg tracking-wider font-mono truncate ${textClass}`}>
               {task.text}
             </span>
-            {/* Time Badge */}
             {timeInfo && (
               <div className="flex items-center text-xs font-mono text-cyan-300 border border-cyan-900 bg-cyan-950/50 px-2 py-1 shadow-[0_0_5px_rgba(34,211,238,0.2)] whitespace-nowrap">
                 <ClockIcon />
@@ -141,7 +170,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
           </div>
           
           <div className="flex items-center mt-2 space-x-3">
-            {/* Stars */}
             <div className="flex space-x-1">
               {[...Array(5)].map((_, i) => (
                 <StarIcon key={i} size={14} filled={i < task.priority} 
@@ -149,7 +177,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
                 />
               ))}
             </div>
-            {/* Progress Bar Style Badge */}
             {totalSubtasks > 0 && (
               <div className="flex items-center">
                  <span className={`text-[10px] font-mono px-2 py-0.5 border ${completedSubtasks === totalSubtasks ? 'border-green-500 text-green-500 shadow-[0_0_5px_#22c55e]' : 'border-gray-600 text-gray-500'}`}>
@@ -176,7 +203,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
         </div>
       </div>
 
-      {/* Subtasks Area */}
       {isExpanded && (
         <div className="border-t border-gray-800 bg-black/50 px-4 py-3 pl-14 relative">
           <div className="absolute left-10 top-0 bottom-0 w-px bg-gray-800"></div>
@@ -186,7 +212,7 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
               <li key={st.id} className="flex items-center group">
                 <div className="w-3 h-px bg-gray-600 mr-2"></div>
                 <button
-                  onClick={() => onToggleSubtask(task.id, st.id)}
+                  onClick={() => onToggleSubtask(task.id, st.id, st.completed)}
                   className={`w-4 h-4 mr-3 flex items-center justify-center border transition-all ${st.completed ? 'bg-green-500 border-green-500 shadow-[0_0_5px_#22c55e]' : 'border-gray-600 bg-black hover:border-green-500'}`}
                 >
                   {st.completed && <CheckIcon size={10} />}
@@ -199,7 +225,6 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
             ))}
           </ul>
           
-          {/* Add Subtask Input */}
           <div className="flex items-center mt-2 border-b border-gray-700 pb-1">
             <span className="text-cyan-600 mr-2 text-lg font-mono">{">>"}</span>
             <input 
@@ -225,63 +250,66 @@ const TaskItem = ({ task, onToggle, onDelete, onAddSubtask, onToggleSubtask, onD
 };
 
 // --- Main App Component ---
-
-// 1. 定義預設任務 (只有第一次使用，完全沒有存檔時才會顯示這些)
-const DEFAULT_TASKS = [
-  { 
-    id: 1, 
-    text: "攻破企業防火牆", 
-    priority: 5, 
-    completed: false, 
-    createdAt: Date.now() - 10000,
-    scheduledStart: null,
-    scheduledEnd: null,
-    subtasks: [
-      { id: 101, text: "繞過 ICE 認證", completed: true },
-      { id: 102, text: "注入 SQL Payload", completed: false }
-    ]
-  },
-  { 
-    id: 2, 
-    text: "升級義體韌體", 
-    priority: 3, 
-    completed: false, 
-    createdAt: Date.now(),
-    scheduledStart: null,
-    scheduledEnd: null,
-    subtasks: []
-  }
-];
-
 export default function App() {
-  // 2. 初始化 State：先去 localStorage 找，找不到才用預設值
-  const [tasks, setTasks] = useState(() => {
-    try {
-      const savedTasks = localStorage.getItem("cyberpunk_tasks");
-      if (savedTasks) {
-        return JSON.parse(savedTasks);
-      }
-    } catch (e) {
-      console.error("讀取存檔失敗", e);
-    }
-    return DEFAULT_TASKS;
-  });
-  
+  const [tasks, setTasks] = useState([]);
+  const [user, setUser] = useState(null);
+  // 同步代碼：只要手機和電腦輸入一樣的代碼，資料就會同步
+  const [syncCode, setSyncCode] = useState(() => localStorage.getItem("cyberpunk_sync_code") || "DEFAULT_ROOM");
+  const [isEditingSync, setIsEditingSync] = useState(false);
+
   const [inputText, setInputText] = useState("");
   const [inputPriority, setInputPriority] = useState(3);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // 3. 監聽 tasks 變化：只要任務有任何變動，立刻存檔到 localStorage
+  // 1. 初始化 Firebase Auth
   useEffect(() => {
-    localStorage.setItem("cyberpunk_tasks", JSON.stringify(tasks));
-  }, [tasks]);
+    const initAuth = async () => {
+      // 檢查是否是預覽環境 (Canvas)
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+         // Canvas 環境：使用 Custom Token
+         // 但通常使用者自己在 Vercel 部署時不會有這個
+      } 
+      // 標準做法：匿名登入 (確保能讀寫 Firebase)
+      await signInAnonymously(auth);
+    };
+    initAuth();
+    
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-  const addTask = () => {
-    if (!inputText.trim()) return;
+  // 2. 監聽 Firestore 數據 (即時同步核心)
+  useEffect(() => {
+    if (!user) return;
+
+    // 使用 public/data 路徑，加上 syncCode 作為房號
+    // 路徑：artifacts/{APP_ID}/public/data/room_{syncCode}
+    const collectionRef = collection(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`);
+    
+    // 監聽變更
+    const unsubscribeSnapshot = onSnapshot(collectionRef, (snapshot) => {
+      const loadedTasks = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setTasks(loadedTasks);
+    }, (error) => {
+      console.error("同步失敗:", error);
+    });
+
+    // 儲存 syncCode 到本地，下次開啟不用重打
+    localStorage.setItem("cyberpunk_sync_code", syncCode);
+
+    return () => unsubscribeSnapshot();
+  }, [user, syncCode]); // 當 user 登入或 syncCode 改變時，重新連線
+
+  // --- CRUD Operations (改為操作 Firebase) ---
+
+  const addTask = async () => {
+    if (!inputText.trim() || !user) return;
     
     const newTask = {
-      id: Date.now(),
       text: inputText,
       priority: inputPriority,
       completed: false,
@@ -291,61 +319,106 @@ export default function App() {
       subtasks: []
     };
 
-    setTasks([...tasks, newTask]);
-    setInputText("");
-    setInputPriority(3);
-    setStartTime("");
-    setEndTime("");
+    try {
+      const collectionRef = collection(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`);
+      await addDoc(collectionRef, newTask);
+      
+      setInputText("");
+      setInputPriority(3);
+      setStartTime("");
+      setEndTime("");
+    } catch (e) {
+      console.error("新增失敗", e);
+      alert("連線錯誤：請檢查 Firebase 設定");
+    }
   };
 
-  const deleteTask = (id) => setTasks(tasks.filter(t => t.id !== id));
-
-  const toggleTask = (id) => {
-    setTasks(tasks.map(t => {
-      if (t.id === id) {
-        const newCompletedState = !t.completed;
-        const updatedSubtasks = t.subtasks.map(st => ({ ...st, completed: newCompletedState }));
-        return { ...t, completed: newCompletedState, subtasks: updatedSubtasks };
-      }
-      return t;
-    }));
+  const deleteTask = async (id) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error("刪除失敗", e);
+    }
   };
 
-  const addSubtask = (taskId, text) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        return {
-          ...t,
-          completed: false, 
-          subtasks: [...t.subtasks, { id: Date.now(), text, completed: false }]
-        };
-      }
-      return t;
-    }));
+  const toggleTask = async (id, currentStatus) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, id);
+      // 這裡簡單切換，實際應用可能需要更新 subtasks 狀態
+      const task = tasks.find(t => t.id === id);
+      const newCompletedState = !currentStatus;
+      
+      // 連動更新子任務 (Optional UI logic)
+      const updatedSubtasks = task.subtasks ? task.subtasks.map(st => ({ ...st, completed: newCompletedState })) : [];
+
+      await updateDoc(docRef, { 
+        completed: newCompletedState,
+        subtasks: updatedSubtasks
+      });
+    } catch (e) {
+      console.error("更新失敗", e);
+    }
   };
 
-  const deleteSubtask = (taskId, subtaskId) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        return { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) };
-      }
-      return t;
-    }));
+  const addSubtask = async (taskId, text) => {
+    if (!user) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newSubtasks = [...(task.subtasks || []), { id: Date.now(), text, completed: false }];
+    
+    try {
+      const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, taskId);
+      await updateDoc(docRef, { 
+        subtasks: newSubtasks,
+        completed: false // 新增子任務後，主任務變回未完成
+      });
+    } catch (e) {
+      console.error("子任務新增失敗", e);
+    }
   };
 
-  const toggleSubtask = (taskId, subtaskId) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        const updatedSubtasks = t.subtasks.map(st => 
-          st.id === subtaskId ? { ...st, completed: !st.completed } : st
-        );
-        const allCompleted = updatedSubtasks.length > 0 && updatedSubtasks.every(st => st.completed);
-        return { ...t, subtasks: updatedSubtasks, completed: allCompleted };
-      }
-      return t;
-    }));
+  const deleteSubtask = async (taskId, subtaskId) => {
+    if (!user) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newSubtasks = task.subtasks.filter(st => st.id !== subtaskId);
+    
+    try {
+      const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, taskId);
+      await updateDoc(docRef, { subtasks: newSubtasks });
+    } catch (e) {
+      console.error("子任務刪除失敗", e);
+    }
   };
 
+  const toggleSubtask = async (taskId, subtaskId, currentStatus) => {
+    if (!user) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newSubtasks = task.subtasks.map(st => 
+      st.id === subtaskId ? { ...st, completed: !currentStatus } : st
+    );
+    
+    const allCompleted = newSubtasks.length > 0 && newSubtasks.every(st => st.completed);
+
+    try {
+      const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, taskId);
+      await updateDoc(docRef, { 
+        subtasks: newSubtasks,
+        completed: allCompleted
+      });
+    } catch (e) {
+      console.error("子任務更新失敗", e);
+    }
+  };
+
+  // Client-side sorting (Firestore 排序需要索引，前端排序較簡單)
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     if (!a.completed) {
@@ -366,22 +439,49 @@ export default function App() {
 
       <div className="max-w-xl mx-auto relative z-10 pb-20">
         
-        {/* Header */}
+        {/* Header & Sync Status */}
         <div className="pt-8 pb-6 px-4 text-center">
           <h1 className={`text-3xl font-bold tracking-widest uppercase glitch-text mb-2 ${urgentCount > 0 ? 'text-red-500 drop-shadow-[0_0_10px_#ef4444]' : 'text-cyan-400 drop-shadow-[0_0_10px_#22d3ee]'}`}>
             系統_權限覆寫
           </h1>
-          <div className="flex items-center justify-center space-x-2">
-             <div className={`h-2 w-2 rounded-full ${urgentCount > 0 ? 'bg-red-500 animate-ping' : 'bg-green-500'}`}></div>
-             <p className="text-xs text-gray-500 tracking-widest">
-               狀態: {urgentCount > 0 ? `嚴重警告_待處理 [${urgentCount}]` : "系統_運作正常"}
-             </p>
+          
+          <div className="flex flex-col items-center justify-center space-y-2">
+             <div className="flex items-center space-x-2">
+                <div className={`h-2 w-2 rounded-full ${user ? (urgentCount > 0 ? 'bg-red-500 animate-ping' : 'bg-green-500') : 'bg-gray-500'}`}></div>
+                <p className="text-xs text-gray-500 tracking-widest">
+                  {user ? (urgentCount > 0 ? `嚴重警告_待處理 [${urgentCount}]` : "系統_運作正常") : "連接伺服器中..."}
+                </p>
+             </div>
+
+             {/* Sync Code Input Area */}
+             <div className="flex items-center space-x-2 bg-gray-900 border border-gray-700 px-3 py-1 rounded text-xs">
+                <SyncIcon className="text-cyan-500" />
+                <span className="text-gray-500 uppercase">同步頻段:</span>
+                {isEditingSync ? (
+                  <input 
+                    type="text" 
+                    value={syncCode} 
+                    onChange={(e) => setSyncCode(e.target.value.toUpperCase())}
+                    onBlur={() => setIsEditingSync(false)}
+                    className="bg-transparent text-cyan-400 outline-none w-24 uppercase font-bold"
+                    autoFocus
+                  />
+                ) : (
+                  <span 
+                    onClick={() => setIsEditingSync(true)} 
+                    className="text-cyan-400 font-bold cursor-pointer hover:underline"
+                    title="點擊修改同步代碼"
+                  >
+                    {syncCode}
+                  </span>
+                )}
+             </div>
+             <p className="text-[10px] text-gray-600">在手機輸入相同頻段即可同步</p>
           </div>
         </div>
 
         {/* Input Console */}
         <div className="mx-4 mb-8 bg-black border border-cyan-900 shadow-[0_0_20px_rgba(34,211,238,0.1)] relative group">
-          {/* Decorative Corner Lines */}
           <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-cyan-500"></div>
           <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-cyan-500"></div>
 
@@ -398,7 +498,6 @@ export default function App() {
               />
             </div>
 
-            {/* Time Controls */}
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <div className="flex-1">
                 <label className="text-[10px] text-gray-500 block mb-1 uppercase tracking-wider">執行_開始</label>
