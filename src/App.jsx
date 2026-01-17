@@ -9,13 +9,14 @@ import {
 // --- Firebase 設定區 (請換成你自己的 Firebase 專案設定) ---
 // 如果你在 CodeSandbox 或本機執行，請去 firebase.google.com 申請免費專案
 // 然後把你的 config 貼在這裡覆蓋掉預設值
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+const firebaseConfig = { 
+  apiKey :"AIzaSyBfekd-qb18_0j8RNGeLQUe8LZ1xoNRhnE" , 
+  authDomain : "bullet-f2309.firebaseapp.com" , 
+  projectId : "bullet-f2309" , 
+  storageBucket : "bullet-f2309.firebasestorage.app" , 
+  messagingSenderId : "199988816797" , 
+  appId : "1:199988816797:web:93efde2f5ce122fe985d74" , 
+  measurementId : "G-SPHPYJ5QCR" 
 };
 
 // 初始化 Firebase (加入錯誤捕捉)
