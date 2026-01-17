@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // 引入 Firebase 核心功能
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { 
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot 
 } from "firebase/firestore";
@@ -29,7 +29,8 @@ try {
   initError = e.message;
 }
 
-const APP_ID = "cyberpunk-bullet-journal"; // 你的 APP 唯一識別碼
+// 修正 APP_ID：優先使用環境變數，解決權限不足的問題
+const APP_ID = typeof __app_id !== 'undefined' ? __app_id : "cyberpunk-bullet-journal";
 
 // --- Cyberpunk Icons (圖標元件) ---
 const StarIcon = ({ filled, colorClass, onClick, size = 20 }) => (
@@ -284,15 +285,23 @@ export default function App() {
     }
   }, []);
 
-  // 1. 初始化 Firebase Auth
+  // 1. 初始化 Firebase Auth (修正版：優先使用 Custom Token)
   useEffect(() => {
     if (systemError) return; // 如果有設定錯誤就不嘗試連線
 
     const initAuth = async () => {
       try {
-        await signInAnonymously(auth);
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          // 優先嘗試 Custom Token (適用於 Canvas 等環境)
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          // 本機開發或無 Token 時使用匿名登入
+          await signInAnonymously(auth);
+        }
       } catch (e) {
         console.error("Auth Error", e);
+        // 如果 Custom Token 失敗，嘗試 fallback 到匿名 (這可能需要根據具體環境決定)
+        // 這裡顯示錯誤讓使用者知道
         setSystemError(`登入失敗: ${e.message}`);
       }
     };
