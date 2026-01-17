@@ -10,7 +10,7 @@ import {
 // 如果你在 CodeSandbox 或本機執行，請去 firebase.google.com 申請免費專案
 // 然後把你的 config 貼在這裡覆蓋掉預設值
 const firebaseConfig = { 
-  apiKey ："AIzaSyBfekd-qb18_0j8RNGeLQUe8LZ1xoNRhnE" , 
+  apiKey :"AIzaSyBfekd-qb18_0j8RNGeLQUe8LZ1xoNRhnE" , 
   authDomain : "bullet-f2309.firebaseapp.com" , 
   projectId : "bullet-f2309" , 
   storageBucket : "bullet-f2309.firebasestorage.app" , 
