@@ -3,26 +3,32 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { 
-  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy 
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot 
 } from "firebase/firestore";
 
 // --- Firebase 設定區 (請換成你自己的 Firebase 專案設定) ---
 // 如果你在 CodeSandbox 或本機執行，請去 firebase.google.com 申請免費專案
 // 然後把你的 config 貼在這裡覆蓋掉預設值
-const firebaseConfig = { 
-  apiKey :"AIzaSyBfekd-qb18_0j8RNGeLQUe8LZ1xoNRhnE" , 
-  authDomain : "bullet-f2309.firebaseapp.com" , 
-  projectId : "bullet-f2309" , 
-  storageBucket : "bullet-f2309.firebasestorage.app" , 
-  messagingSenderId : "199988816797" , 
-  appId : "1:199988816797:web:93efde2f5ce122fe985d74" , 
-  measurementId : "G-SPHPYJ5QCR" 
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
-// 初始化 Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// 初始化 Firebase (加入錯誤捕捉)
+let app, auth, db;
+let initError = null;
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (e) {
+  initError = e.message;
+}
+
 const APP_ID = "cyberpunk-bullet-journal"; // 你的 APP 唯一識別碼
 
 // --- Cyberpunk Icons (圖標元件) ---
@@ -65,6 +71,14 @@ const SyncIcon = ({ className }) => (
     <path d="M3 3v5h5" />
     <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
     <path d="M16 16h5v5" />
+  </svg>
+);
+
+const AlertIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}>
+    <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+    <line x1="12" y1="8" x2="12" y2="12"></line>
+    <line x1="12" y1="16" x2="12.01" y2="16"></line>
   </svg>
 );
 
@@ -256,57 +270,75 @@ export default function App() {
   // 同步代碼：只要手機和電腦輸入一樣的代碼，資料就會同步
   const [syncCode, setSyncCode] = useState(() => localStorage.getItem("cyberpunk_sync_code") || "DEFAULT_ROOM");
   const [isEditingSync, setIsEditingSync] = useState(false);
+  const [systemError, setSystemError] = useState(initError || ""); // 系統錯誤訊息
 
   const [inputText, setInputText] = useState("");
   const [inputPriority, setInputPriority] = useState(3);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
+  // 0. 檢查 Config 是否還是預設值
+  useEffect(() => {
+    if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+      setSystemError("尚未設定 Firebase！請修改程式碼填入 API Key 才能存檔。");
+    }
+  }, []);
+
   // 1. 初始化 Firebase Auth
   useEffect(() => {
+    if (systemError) return; // 如果有設定錯誤就不嘗試連線
+
     const initAuth = async () => {
-      // 檢查是否是預覽環境 (Canvas)
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-         // Canvas 環境：使用 Custom Token
-         // 但通常使用者自己在 Vercel 部署時不會有這個
-      } 
-      // 標準做法：匿名登入 (確保能讀寫 Firebase)
-      await signInAnonymously(auth);
+      try {
+        await signInAnonymously(auth);
+      } catch (e) {
+        console.error("Auth Error", e);
+        setSystemError(`登入失敗: ${e.message}`);
+      }
     };
     initAuth();
     
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
-  }, []);
+  }, [systemError]);
 
   // 2. 監聽 Firestore 數據 (即時同步核心)
   useEffect(() => {
-    if (!user) return;
+    if (!user || systemError) return;
 
-    // 使用 public/data 路徑，加上 syncCode 作為房號
-    // 路徑：artifacts/{APP_ID}/public/data/room_{syncCode}
-    const collectionRef = collection(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`);
-    
-    // 監聽變更
-    const unsubscribeSnapshot = onSnapshot(collectionRef, (snapshot) => {
-      const loadedTasks = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setTasks(loadedTasks);
-    }, (error) => {
-      console.error("同步失敗:", error);
-    });
+    try {
+      const collectionRef = collection(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`);
+      
+      const unsubscribeSnapshot = onSnapshot(collectionRef, (snapshot) => {
+        const loadedTasks = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setTasks(loadedTasks);
+        setSystemError(""); // 成功連線則清除錯誤
+      }, (error) => {
+        console.error("同步失敗:", error);
+        if (error.code === 'permission-denied') {
+          setSystemError("權限不足：請檢查 Firebase Firestore 規則是否設為 Test Mode (測試模式)");
+        } else {
+          setSystemError(`連線中斷: ${error.message}`);
+        }
+      });
 
-    // 儲存 syncCode 到本地，下次開啟不用重打
-    localStorage.setItem("cyberpunk_sync_code", syncCode);
+      localStorage.setItem("cyberpunk_sync_code", syncCode);
+      return () => unsubscribeSnapshot();
+    } catch (e) {
+      setSystemError(`資料庫錯誤: ${e.message}`);
+    }
+  }, [user, syncCode, systemError]);
 
-    return () => unsubscribeSnapshot();
-  }, [user, syncCode]); // 當 user 登入或 syncCode 改變時，重新連線
-
-  // --- CRUD Operations (改為操作 Firebase) ---
+  // --- CRUD Operations ---
 
   const addTask = async () => {
+    if (systemError) {
+      alert("系統錯誤，無法新增任務。請先修復上方的錯誤訊息。");
+      return;
+    }
     if (!inputText.trim() || !user) return;
     
     const newTask = {
@@ -329,7 +361,7 @@ export default function App() {
       setEndTime("");
     } catch (e) {
       console.error("新增失敗", e);
-      alert("連線錯誤：請檢查 Firebase 設定");
+      setSystemError(`新增失敗: ${e.message}`);
     }
   };
 
@@ -340,6 +372,7 @@ export default function App() {
       await deleteDoc(docRef);
     } catch (e) {
       console.error("刪除失敗", e);
+      setSystemError(`刪除失敗: ${e.message}`);
     }
   };
 
@@ -347,11 +380,8 @@ export default function App() {
     if (!user) return;
     try {
       const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, id);
-      // 這裡簡單切換，實際應用可能需要更新 subtasks 狀態
       const task = tasks.find(t => t.id === id);
       const newCompletedState = !currentStatus;
-      
-      // 連動更新子任務 (Optional UI logic)
       const updatedSubtasks = task.subtasks ? task.subtasks.map(st => ({ ...st, completed: newCompletedState })) : [];
 
       await updateDoc(docRef, { 
@@ -360,6 +390,7 @@ export default function App() {
       });
     } catch (e) {
       console.error("更新失敗", e);
+      setSystemError(`更新失敗: ${e.message}`);
     }
   };
 
@@ -374,7 +405,7 @@ export default function App() {
       const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', `room_${syncCode}`, taskId);
       await updateDoc(docRef, { 
         subtasks: newSubtasks,
-        completed: false // 新增子任務後，主任務變回未完成
+        completed: false 
       });
     } catch (e) {
       console.error("子任務新增失敗", e);
@@ -404,7 +435,6 @@ export default function App() {
     const newSubtasks = task.subtasks.map(st => 
       st.id === subtaskId ? { ...st, completed: !currentStatus } : st
     );
-    
     const allCompleted = newSubtasks.length > 0 && newSubtasks.every(st => st.completed);
 
     try {
@@ -418,7 +448,6 @@ export default function App() {
     }
   };
 
-  // Client-side sorting (Firestore 排序需要索引，前端排序較簡單)
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     if (!a.completed) {
@@ -446,12 +475,20 @@ export default function App() {
           </h1>
           
           <div className="flex flex-col items-center justify-center space-y-2">
-             <div className="flex items-center space-x-2">
-                <div className={`h-2 w-2 rounded-full ${user ? (urgentCount > 0 ? 'bg-red-500 animate-ping' : 'bg-green-500') : 'bg-gray-500'}`}></div>
-                <p className="text-xs text-gray-500 tracking-widest">
-                  {user ? (urgentCount > 0 ? `嚴重警告_待處理 [${urgentCount}]` : "系統_運作正常") : "連接伺服器中..."}
-                </p>
-             </div>
+             {/* 錯誤訊息橫幅 */}
+             {systemError ? (
+               <div className="flex items-center space-x-2 bg-red-900/50 border border-red-500 px-4 py-2 rounded text-xs animate-pulse mb-2">
+                  <AlertIcon className="text-red-500" />
+                  <span className="text-red-200 font-bold">{systemError}</span>
+               </div>
+             ) : (
+               <div className="flex items-center space-x-2">
+                  <div className={`h-2 w-2 rounded-full ${user ? (urgentCount > 0 ? 'bg-red-500 animate-ping' : 'bg-green-500') : 'bg-yellow-500 animate-pulse'}`}></div>
+                  <p className="text-xs text-gray-500 tracking-widest">
+                    {user ? (urgentCount > 0 ? `嚴重警告_待處理 [${urgentCount}]` : "系統_運作正常") : "連接伺服器中..."}
+                  </p>
+               </div>
+             )}
 
              {/* Sync Code Input Area */}
              <div className="flex items-center space-x-2 bg-gray-900 border border-gray-700 px-3 py-1 rounded text-xs">
